@@ -123,9 +123,6 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
         self.browsEntries_AddEntryButton.clicked.connect(self.add_entry)
         self.browseEntries_Table.setSortingEnabled(True)
 
-        self.entryerrorbutton = qtw.QPushButton()
-        self.entryerrorbutton.clicked.connect(self.openerror)
-
     def lock_vault(self):
         if self.current_vault['vault_type'] is None or self.is_locking is True:
             return
@@ -633,10 +630,10 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
                         if sub_path.samefile(cur_path):
                             self.openVault_VaultList.setCurrentItem(new_item)
 
-    def openerror(self):
+    def openerror(self, err):
         error_modal = qtw.QMessageBox(qtw.QMessageBox.Icon.Warning,
                                       "Open vault",
-                                      f"Vault failed to open:",
+                                      f"Vault failed to open:\n{err}",
                                       qtw.QMessageBox.StandardButton.Ok,
                                       self)
         error_modal.exec()
@@ -674,6 +671,7 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
                         backend.get_vault_entries(vault_path, master_password)
                     )
                 except Exception as err:
+                    error.info = err
                     error.set()
                     return
 
@@ -693,7 +691,7 @@ class MainWindow(qtw.QMainWindow, Ui_MainWindow):
 
                     self.current_password = master_password
                 else:
-                    self.entryerrorbutton.click()
+                    self.openerror(error.info)
                 loading_dialog.close()
 
             self.async_do(task, done)

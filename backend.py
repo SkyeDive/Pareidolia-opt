@@ -45,58 +45,55 @@ def get_vault_entries(filepath: str, master_password: str) -> tuple[list[DataEnt
     May throw an ImageReadingError, DecodingError, or DecryptionError.
     """
 
+    # get the raw data out of the image:
+    if not check_image_path(filepath):
+        raise ImageReadingError(f"Failed to read the contents of '{filepath}'")
+
     try:
-        # get the raw data out of the image:
-        if not check_image_path(filepath):
-            raise ImageReadingError(f"Failed to read the contents of '{filepath}'")
+        raw_image_data = pull_from_image(filepath)
+    except Exception as e:
+        raise ImageReadingError(f"Failed to read the contents of '{filepath}'\n{e}") from e
 
-        try:
-            raw_image_data = pull_from_image(filepath)
-        except Exception as e:
-            raise ImageReadingError(f"Failed to read the contents of '{filepath}'") from e
+    # unpack the information necessary for decryption from the raw data:
+    try:
+        initialization_vector, salt, ciphertext = unpack_data(raw_image_data)
+    except Exception as e:
+        raise DecodingError(f"Failed to unpack data from '{filepath}'")
 
-        # unpack the information necessary for decryption from the raw data:
-        try:
-            initialization_vector, salt, ciphertext = unpack_data(raw_image_data)
-        except Exception as e:
-            raise DecodingError(f"Failed to unpack data from '{filepath}'")
+    # decrypt the ciphertext:
+    try:
+        plaintext = decrypt(
+            master_password,
+            initialization_vector,
+            salt,
+            ciphertext
+        )
+    except Exception as e:
+        raise DecryptionError(f"Failed to decrypt the contents of '{filepath}'") from e
 
-        # decrypt the ciphertext:
-        try:
-            plaintext = decrypt(
-                master_password,
-                initialization_vector,
-                salt,
-                ciphertext
-            )
-        except Exception as e:
-            raise DecryptionError(f"Failed to decrypt the contents of '{filepath}'") from e
+    # deserialize the JSON entries to python objects:
+    json_entries = json.loads(plaintext)
 
-        # deserialize the JSON entries to python objects:
-        json_entries = json.loads(plaintext)
+    if not isinstance(json_entries, list):
+        raise DecodingError(f"Encrypted contents of JSON are not a valid list of entries")
 
-        if not isinstance(json_entries, list):
-            raise DecodingError(f"Encrypted contents of JSON are not a valid list of entries")
+    if len(json_entries) == 0:
+        return [], None
 
-        if len(json_entries) == 0:
-            return [], None
+    data_entries = []
+    vault_type = VaultType.PASSWORD if 'password' in json_entries[0] else VaultType.DATA
 
-        data_entries = []
-        vault_type = VaultType.PASSWORD if 'password' in json_entries[0] else VaultType.DATA
+    try:
+        if vault_type == VaultType.PASSWORD:
+            for entry in json_entries:
+                data_entries.append(PasswordEntry(**entry))
+        elif vault_type == VaultType.DATA:
+            for entry in json_entries:
+                data_entries.append(DataEntry(**entry))
+    except json.JSONDecodeError:
+        raise DecodingError('Error encountered while decoding JSON image contents')
 
-        try:
-            if vault_type == VaultType.PASSWORD:
-                for entry in json_entries:
-                    data_entries.append(PasswordEntry(**entry))
-            elif vault_type == VaultType.DATA:
-                for entry in json_entries:
-                    data_entries.append(DataEntry(**entry))
-        except json.JSONDecodeError:
-            raise DecodingError('Error encountered while decoding JSON image contents')
-
-        return data_entries, vault_type
-    except:
-        return None
+    return data_entries, vault_type
 
 def save_vault_entries(entries: list[DataEntry] | list[PasswordEntry], filepath: str, master_password: str):
     """
