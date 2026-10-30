@@ -1,0 +1,7 @@
+# python venv
+venv
+
+# python caches
+__pycache__
+Pareidolia_Application/__pycache__
+Pareidolia_Application/ui/__pycache__

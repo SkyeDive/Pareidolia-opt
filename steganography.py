@@ -128,6 +128,13 @@ def __extract_byte(pixel: tuple[int,int,int,int]) -> bytes:
     return cur_byte.to_bytes(length=1, byteorder='big')
 
 
+def __extract_val(pixel: tuple[int,int,int,int]) -> bytes:
+    """
+    Pull least significant bits from a pixel and reformat into a byte
+    """
+    return ((pixel[3] & 3) << 6) | ((pixel[2] & 3) << 4) | ((pixel[1] & 3) << 2) | (pixel[0] & 3)
+
+
 def pull_from_image(img_path: str) -> bytes:
     """
     Extract the encrypted data from the provided image and return as bytes
@@ -147,20 +154,20 @@ def pull_from_image(img_path: str) -> bytes:
             raise Exception("invalid image data: size too small")
 
         #read header data for conditions and returning
-        img_header = b""
+        img_header = bytearray(h_size)
         for i in range(h_size):
-            img_header += __extract_byte(img_data[i])
+            img_header[i] = __extract_val(img_data[i])
 
         cipher_length = img_header[h_size-4] << 24 | img_header[h_size-3] << 16 | img_header[h_size-2] << 8 | img_header[h_size-1]
         if len(img_data) < h_size + cipher_length or cipher_length <= 0:
             raise Exception("invalid image data: incorrect data length")
 
         #read ciphertext and return
-        ciphertext = b""
-        for i in range(h_size, h_size+cipher_length):
-            ciphertext += __extract_byte(img_data[i])
+        ciphertext = bytearray(cipher_length)
+        for i in range(cipher_length):
+            ciphertext[i] += __extract_val(img_data[h_size + i])
 
         benchmarkEndTime = time.time()
         print(f"pulled from image in {benchmarkEndTime - benchmarkStartTime}s")
         print(f"len was {len(img_header + ciphertext)}")
-        return img_header + ciphertext
+        return bytes(img_header + ciphertext)
