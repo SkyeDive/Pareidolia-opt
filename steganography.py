@@ -3,6 +3,7 @@ Module for writing/reading encrypted data to/from images
 """
 from PIL import Image
 import logging
+import time
 
 def __insert_byte(pixel: tuple[int,int,int,int], byte: int) -> tuple[int, int, int, int]:
     """
@@ -74,6 +75,7 @@ def write_to_image(img_path: str, enc_data: bytes, new_img_path = None) -> None:
     Write the provided data into the least significant bits of the given image
     If new_img_path is not specified, will save in-place
     """
+    benchmarkStartTime = time.time()
     #header: 25 bytes fixed length data, 4 bytes ciphertext length
     h_size = 29
 
@@ -113,6 +115,9 @@ def write_to_image(img_path: str, enc_data: bytes, new_img_path = None) -> None:
             img.save(img_path)
         else:
             img.save(new_img_path)
+    benchmarkEndTime = time.time()
+    print(f"wrote to image in {benchmarkEndTime - benchmarkStartTime}s")
+    print(f"len was {len(enc_data)}")
 
 
 def __extract_byte(pixel: tuple[int,int,int,int]) -> bytes:
@@ -127,6 +132,7 @@ def pull_from_image(img_path: str) -> bytes:
     """
     Extract the encrypted data from the provided image and return as bytes
     """
+    benchmarkStartTime = time.time()
     h_size = 29
 
     with Image.open(img_path) as img:
@@ -154,4 +160,7 @@ def pull_from_image(img_path: str) -> bytes:
         for i in range(h_size, h_size+cipher_length):
             ciphertext += __extract_byte(img_data[i])
 
+        benchmarkEndTime = time.time()
+        print(f"pulled from image in {benchmarkEndTime - benchmarkStartTime}s")
+        print(f"len was {len(img_header + ciphertext)}")
         return img_header + ciphertext
